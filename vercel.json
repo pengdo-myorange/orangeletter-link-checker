@@ -2,14 +2,10 @@
   "version": 2,
   "functions": {
     "api/fetch.py": {
-      "runtime": "python3.9",
-      "memory": 512,
-      "maxDuration": 30
+      "runtime": "@vercel/python"
     },
     "api/scrape.py": {
-      "runtime": "python3.9",
-      "memory": 512,
-      "maxDuration": 30
+      "runtime": "@vercel/python"
     }
   },
   "regions": ["icn1"],
