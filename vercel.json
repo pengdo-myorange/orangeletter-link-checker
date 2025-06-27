@@ -1,14 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/fetch.py": {
-      "runtime": "@vercel/python"
-    },
-    "api/scrape.py": {
-      "runtime": "@vercel/python"
-    }
-  },
-  "regions": ["icn1"],
   "headers": [
     {
       "source": "/api/(.*)",
