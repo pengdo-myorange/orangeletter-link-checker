@@ -2,9 +2,12 @@
 import json
 import requests
 import re
+import io
+import easyocr
 from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler
 from bs4 import BeautifulSoup
+from PIL import Image
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -262,16 +265,72 @@ class handler(BaseHTTPRequestHandler):
                         if body_paragraphs:
                             main_content = ' '.join([p.get_text().strip() for p in body_paragraphs[:3]])[:200]
                     
-                    # 이미지 정보
+                    # 이미지 정보 및 OCR 텍스트 추출
                     images = []
+                    ocr_text = ''
                     img_tags = soup.find_all('img', src=True)[:3]  # 최대 3개
-                    for img in img_tags:
-                        if img.get('src'):
-                            images.append({
-                                'src': img.get('src'),
-                                'alt': img.get('alt', ''),
-                                'title': img.get('title', '')
-                            })
+                    
+                    # OCR 리더 초기화 (한국어, 영어 지원)
+                    try:
+                        reader = easyocr.Reader(['ko', 'en'], gpu=False)
+                        
+                        for img in img_tags:
+                            if img.get('src'):
+                                img_src = img.get('src')
+                                
+                                # 상대 URL을 절대 URL로 변환
+                                if img_src.startswith('//'):
+                                    img_src = 'https:' + img_src
+                                elif img_src.startswith('/'):
+                                    parsed_base = urlparse(url)
+                                    img_src = f"{parsed_base.scheme}://{parsed_base.netloc}{img_src}"
+                                elif not img_src.startswith(('http://', 'https://')):
+                                    parsed_base = urlparse(url)
+                                    img_src = f"{parsed_base.scheme}://{parsed_base.netloc}/{img_src.lstrip('/')}"
+                                
+                                images.append({
+                                    'src': img_src,
+                                    'alt': img.get('alt', ''),
+                                    'title': img.get('title', ''),
+                                    'ocr_text': ''
+                                })
+                                
+                                # 이미지에서 텍스트 추출
+                                try:
+                                    # 이미지 다운로드 및 OCR 처리
+                                    img_response = requests.get(img_src, headers=headers, timeout=5)
+                                    if img_response.status_code == 200:
+                                        # PIL로 이미지 열기
+                                        image = Image.open(io.BytesIO(img_response.content))
+                                        
+                                        # 이미지 크기가 너무 크면 리사이즈
+                                        if image.width > 1200 or image.height > 1200:
+                                            image.thumbnail((1200, 1200), Image.Resampling.LANCZOS)
+                                        
+                                        # OCR 텍스트 추출
+                                        results = reader.readtext(image)
+                                        img_ocr_text = ' '.join([result[1] for result in results if result[2] > 0.5])
+                                        
+                                        if img_ocr_text.strip():
+                                            images[-1]['ocr_text'] = img_ocr_text.strip()
+                                            ocr_text += ' ' + img_ocr_text.strip()
+                                        
+                                except Exception as ocr_e:
+                                    # OCR 실패 시 로그하지만 계속 진행
+                                    print(f"OCR failed for image {img_src}: {str(ocr_e)}")
+                                    continue
+                    
+                    except Exception as reader_e:
+                        # OCR 리더 초기화 실패 시 기존 방식으로 진행
+                        print(f"OCR reader initialization failed: {str(reader_e)}")
+                        for img in img_tags:
+                            if img.get('src'):
+                                images.append({
+                                    'src': img.get('src'),
+                                    'alt': img.get('alt', ''),
+                                    'title': img.get('title', ''),
+                                    'ocr_text': ''
+                                })
                     
                     # 연락처 정보
                     contact_info = ''
@@ -305,6 +364,40 @@ class handler(BaseHTTPRequestHandler):
                     parsed_url = urlparse(url)
                     site_name = parsed_url.netloc
                     
+                    # OCR 텍스트를 기존 텍스트와 통합하여 재분석
+                    if ocr_text.strip():
+                        combined_text = body_text + ' ' + ocr_text
+                        
+                        # OCR 텍스트에서 추가 정보 재추출
+                        if organizer == 'Unknown Organizer':
+                            for pattern in [r'주최[:：]\s*([^\n\r\|]+)', r'주관[:：]\s*([^\n\r\|]+)']:
+                                match = re.search(pattern, ocr_text, re.IGNORECASE)
+                                if match:
+                                    candidate = match.group(1).strip()
+                                    if 2 <= len(candidate) <= 50:
+                                        organizer = candidate
+                                        break
+                        
+                        if period == 'Unknown Period':
+                            for pattern in [r'마감[:：]\s*(\d{4}[-./년]\s*\d{1,2}[-./월]\s*\d{1,2}[일]?)', r'기간[:：]\s*([^\n\r]+)']:
+                                match = re.search(pattern, ocr_text, re.IGNORECASE)
+                                if match:
+                                    candidate = match.group(1).strip()[:50]
+                                    if any(word in candidate for word in ['월', '일', '년', '까지', '/', '-', '.']):
+                                        period = candidate
+                                        break
+                        
+                        if location == 'Unknown Location':
+                            for pattern in [r'장소[:：]\s*([^\n\r]+)', r'위치[:：]\s*([^\n\r]+)']:
+                                match = re.search(pattern, ocr_text, re.IGNORECASE)
+                                if match:
+                                    candidate = match.group(1).strip()[:50]
+                                    if len(candidate) >= 2:
+                                        location = candidate
+                                        break
+                    else:
+                        combined_text = body_text
+                    
                     page_info = {
                         'title': title or 'Unknown Title',
                         'description': description or 'No description available',
@@ -318,7 +411,8 @@ class handler(BaseHTTPRequestHandler):
                         'contact_info': contact_info or 'No contact info',
                         'details': details or 'No details available',
                         'site_name': site_name,
-                        'full_text': body_text[:500] + ('...' if len(body_text) > 500 else '')  # 전체 텍스트 일부
+                        'ocr_text': ocr_text.strip() or 'No OCR text extracted',
+                        'full_text': combined_text[:500] + ('...' if len(combined_text) > 500 else '')  # OCR 텍스트 포함한 전체 텍스트
                     }
                     
                     self.send_response(200)
