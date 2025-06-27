@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍊 오렌지레터 링크 검증 도구</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 헤더 -->
+        <header class="header">
+            <h1>🍊 오렌지레터 링크 검증 도구</h1>
+            <div class="header-actions">
+                <button id="help-btn" class="btn-icon">도움말</button>
+                <button id="settings-btn" class="btn-icon">설정</button>
+            </div>
+        </header>
+
+        <!-- URL 입력 영역 -->
+        <section class="input-section">
+            <div class="input-group">
+                <input type="url" id="url-input" placeholder="오렌지레터 URL을 입력하세요" 
+                       value="https://stibee.com/api/v1.0/emails/share/6hkmBPCA0PoOL3J6VWi9P1HmYE-1_34">
+                <button id="analyze-btn" class="btn-primary">분석 시작</button>
+            </div>
+            <p class="input-help">예: https://stib.ee/6k7I</p>
+        </section>
+
+        <!-- 로딩 영역 -->
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <p id="loading-text">링크 분석 중...</p>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+                <p id="progress-text">0/0</p>
+            </div>
+        </div>
+
+        <!-- 결과 영역 -->
+        <div id="results-section" class="results-section hidden">
+            <!-- 뉴스레터 정보 -->
+            <section class="newsletter-info">
+                <div class="newsletter-url" id="newsletter-url"></div>
+                <div class="newsletter-title" id="newsletter-title"></div>
+            </section>
+            
+            <!-- 카테고리별 분석 현황 -->
+            <section class="category-overview">
+                <h3>카테고리별 링크 현황</h3>
+                <div class="category-section">
+                    <div id="verified-categories" class="category-grid"></div>
+                </div>
+            </section>
+
+            <!-- 필터/액션 바 -->
+            <section class="filter-bar">
+                <div class="filters">
+                    <select id="category-filter">
+                        <option value="">모든 카테고리</option>
+                    </select>
+                </div>
+                <div class="actions">
+                    <button id="copy-all-btn" class="btn-secondary">전체 복사</button>
+                    <button id="reset-btn" class="btn-secondary">초기화</button>
+                </div>
+            </section>
+
+            <!-- 메인 데이터 테이블 -->
+            <section class="table-section">
+                <div class="table-container">
+                    <table id="results-table" class="results-table">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort="order">#</th>
+                                <th class="sortable" data-sort="category">카테고리</th>
+                                <th class="sortable" data-sort="current">링크 텍스트</th>
+                                <th class="sortable" data-sort="accuracy">정확도</th>
+                                <th>상세 분석</th>
+                                <th>액션</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-tbody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 푸터 -->
+            <footer class="footer">
+                <p id="analysis-info">분석 완료: <span id="completion-time">-</span> | 소요 시간: <span id="duration">-</span></p>
+            </footer>
+        </div>
+    </div>
+
+    <!-- 상세 정보 모달 -->
+    <div id="detail-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>링크 상세 분석</h2>
+                <button id="modal-close" class="btn-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-section">
+                    <h3>◆ 기본 정보</h3>
+                    <div id="basic-info"></div>
+                </div>
+                <div class="detail-section">
+                    <h3>◆ 링크 텍스트 비교</h3>
+                    <div id="text-comparison"></div>
+                </div>
+                <div class="detail-section">
+                    <h3>◆ 정확도 상세 분석</h3>
+                    <div id="accuracy-breakdown"></div>
+                </div>
+                <div class="detail-section">
+                    <h3>◆ 추출된 페이지 정보</h3>
+                    <div id="extracted-info"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="copy-suggested-btn" class="btn-primary">제안 텍스트 복사</button>
+                <button id="copy-url-btn" class="btn-secondary">URL 복사</button>
+                <button id="modal-cancel" class="btn-secondary">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 토스트 알림 -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
