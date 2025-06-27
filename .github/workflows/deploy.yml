@@ -36,17 +36,25 @@ jobs:
       run: npm install -g vercel
     
     - name: Deploy to Vercel (Production)
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.VERCEL_TOKEN != ''
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      env:
+        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       run: |
-        vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
+        if [ -z "$VERCEL_TOKEN" ]; then
+          echo "Skipping Vercel deployment - VERCEL_TOKEN not configured"
+          echo "To enable automatic deployment, add VERCEL_TOKEN to repository secrets"
+          exit 0
+        fi
+        vercel --prod --token=$VERCEL_TOKEN --yes
     
     - name: Deploy to Vercel (Preview)
-      if: github.event_name == 'pull_request' && secrets.VERCEL_TOKEN != ''
+      if: github.event_name == 'pull_request'
+      env:
+        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       run: |
-        vercel --token=${{ secrets.VERCEL_TOKEN }} --yes
-    
-    - name: Skip Vercel Deployment (No Token)
-      if: secrets.VERCEL_TOKEN == ''
-      run: |
-        echo "Skipping Vercel deployment - VERCEL_TOKEN not configured"
-        echo "To enable automatic deployment, add VERCEL_TOKEN to repository secrets"
+        if [ -z "$VERCEL_TOKEN" ]; then
+          echo "Skipping Vercel deployment - VERCEL_TOKEN not configured"
+          echo "To enable automatic deployment, add VERCEL_TOKEN to repository secrets"
+          exit 0
+        fi
+        vercel --token=$VERCEL_TOKEN --yes
