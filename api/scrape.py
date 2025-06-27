@@ -5,7 +5,7 @@ import re
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
-import easyocr
+# import pytesseract  # OCR disabled for Vercel deployment
 import requests
 from bs4 import BeautifulSoup
 from PIL import Image
@@ -303,87 +303,29 @@ class handler(BaseHTTPRequestHandler):
                     ocr_text = ""
                     img_tags = soup.find_all("img", src=True)[:3]  # 최대 3개
 
-                    # OCR 리더 초기화 (한국어, 영어 지원)
-                    try:
-                        reader = easyocr.Reader(["ko", "en"], gpu=False)
+                    # 이미지 정보 추출 (기본 메타데이터만)
+                    for img in img_tags:
+                        if img.get("src"):
+                            img_src = img.get("src")
 
-                        for img in img_tags:
-                            if img.get("src"):
-                                img_src = img.get("src")
+                            # 상대 URL을 절대 URL로 변환
+                            if img_src.startswith("//"):
+                                img_src = "https:" + img_src
+                            elif img_src.startswith("/"):
+                                parsed_base = urlparse(url)
+                                img_src = f"{parsed_base.scheme}://{parsed_base.netloc}{img_src}"
+                            elif not img_src.startswith(("http://", "https://")):
+                                parsed_base = urlparse(url)
+                                img_src = f"{parsed_base.scheme}://{parsed_base.netloc}/{img_src.lstrip('/')}"
 
-                                # 상대 URL을 절대 URL로 변환
-                                if img_src.startswith("//"):
-                                    img_src = "https:" + img_src
-                                elif img_src.startswith("/"):
-                                    parsed_base = urlparse(url)
-                                    img_src = f"{parsed_base.scheme}://{parsed_base.netloc}{img_src}"
-                                elif not img_src.startswith(("http://", "https://")):
-                                    parsed_base = urlparse(url)
-                                    img_src = f"{parsed_base.scheme}://{parsed_base.netloc}/{img_src.lstrip('/')}"
-
-                                images.append(
-                                    {
-                                        "src": img_src,
-                                        "alt": img.get("alt", ""),
-                                        "title": img.get("title", ""),
-                                        "ocr_text": "",
-                                    }
-                                )
-
-                                # 이미지에서 텍스트 추출
-                                try:
-                                    # 이미지 다운로드 및 OCR 처리
-                                    img_response = requests.get(
-                                        img_src, headers=headers, timeout=5
-                                    )
-                                    if img_response.status_code == 200:
-                                        # PIL로 이미지 열기
-                                        image = Image.open(
-                                            io.BytesIO(img_response.content)
-                                        )
-
-                                        # 이미지 크기가 너무 크면 리사이즈
-                                        if image.width > 1200 or image.height > 1200:
-                                            image.thumbnail(
-                                                (1200, 1200), Image.Resampling.LANCZOS
-                                            )
-
-                                        # OCR 텍스트 추출
-                                        results = reader.readtext(image)
-                                        img_ocr_text = " ".join(
-                                            [
-                                                result[1]
-                                                for result in results
-                                                if result[2] > 0.5
-                                            ]
-                                        )
-
-                                        if img_ocr_text.strip():
-                                            images[-1][
-                                                "ocr_text"
-                                            ] = img_ocr_text.strip()
-                                            ocr_text += " " + img_ocr_text.strip()
-
-                                except Exception as ocr_e:
-                                    # OCR 실패 시 로그하지만 계속 진행
-                                    print(
-                                        f"OCR failed for image {img_src}: {str(ocr_e)}"
-                                    )
-                                    continue
-
-                    except Exception as reader_e:
-                        # OCR 리더 초기화 실패 시 기존 방식으로 진행
-                        print(f"OCR reader initialization failed: {str(reader_e)}")
-                        for img in img_tags:
-                            if img.get("src"):
-                                images.append(
-                                    {
-                                        "src": img.get("src"),
-                                        "alt": img.get("alt", ""),
-                                        "title": img.get("title", ""),
-                                        "ocr_text": "",
-                                    }
-                                )
+                            images.append(
+                                {
+                                    "src": img_src,
+                                    "alt": img.get("alt", ""),
+                                    "title": img.get("title", ""),
+                                    "ocr_text": "OCR disabled for Vercel deployment",
+                                }
+                            )
 
                     # 연락처 정보
                     contact_info = ""
@@ -484,7 +426,7 @@ class handler(BaseHTTPRequestHandler):
                         "contact_info": contact_info or "No contact info",
                         "details": details or "No details available",
                         "site_name": site_name,
-                        "ocr_text": ocr_text.strip() or "No OCR text extracted",
+                        "ocr_text": "OCR disabled for Vercel deployment",
                         "full_text": combined_text[:500]
                         + (
                             "..." if len(combined_text) > 500 else ""
