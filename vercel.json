@@ -1,31 +1,13 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "server.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "server.py"
-    },
-    {
-      "src": "/(.*\\.(?:js|css|html|png|jpg|jpeg|gif|ico|svg))",
-      "dest": "/$1"
-    },
-    {
-      "src": "/",
-      "dest": "/index.html"
-    }
-  ],
-  "env": {
-    "PORT": "@port",
-    "HOST": "@host"
-  },
   "functions": {
-    "server.py": {
+    "api/fetch.py": {
+      "runtime": "python3.9",
+      "memory": 512,
+      "maxDuration": 30
+    },
+    "api/scrape.py": {
+      "runtime": "python3.9",
       "memory": 512,
       "maxDuration": 30
     }
