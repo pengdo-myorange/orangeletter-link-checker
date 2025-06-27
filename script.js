@@ -3,6 +3,7 @@ let analysisData = [];
 let currentSortField = 'accuracy';
 let currentSortOrder = 'desc';
 let startTime;
+let notificationsEnabled = false;
 
 // 카테고리 정의
 const CATEGORIES = {
@@ -57,10 +58,143 @@ const elements = {
     toastContainer: document.getElementById('toast-container')
 };
 
+// 푸시 알림 관련 함수
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+        console.log('이 브라우저는 알림을 지원하지 않습니다.');
+        return false;
+    }
+    
+    if (Notification.permission === 'granted') {
+        notificationsEnabled = true;
+        return true;
+    }
+    
+    if (Notification.permission !== 'denied') {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            notificationsEnabled = true;
+            showToast('알림이 활성화되었습니다! 분석 완료 시 알림을 받을 수 있어요.', 'success');
+            return true;
+        }
+    }
+    
+    notificationsEnabled = false;
+    return false;
+}
+
+function showNotification(title, options = {}) {
+    if (!notificationsEnabled || Notification.permission !== 'granted') {
+        return;
+    }
+    
+    const defaultOptions = {
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: 'orangeletter-analysis',
+        renotify: true,
+        requireInteraction: true
+    };
+    
+    const notification = new Notification(title, {
+        ...defaultOptions,
+        ...options
+    });
+    
+    // 클릭 시 창 포커스
+    notification.onclick = function() {
+        window.focus();
+        notification.close();
+    };
+    
+    // 5초 후 자동 닫기
+    setTimeout(() => {
+        notification.close();
+    }, 5000);
+    
+    return notification;
+}
+
+function sendAnalysisCompleteNotification(analysisData) {
+    if (!notificationsEnabled) {
+        return;
+    }
+    
+    const totalLinks = analysisData.length;
+    const lowAccuracyLinks = analysisData.filter(item => item.accuracy < 70).length;
+    const avgAccuracy = totalLinks > 0 ? Math.round(analysisData.reduce((sum, item) => sum + item.accuracy, 0) / totalLinks) : 0;
+    
+    let title = '🍊 오렌지레터 링크 분석 완료!';
+    let body;
+    let icon = '/favicon.ico';
+    
+    if (lowAccuracyLinks === 0) {
+        body = `✅ ${totalLinks}개 링크 분석 완료\n평균 정확도: ${avgAccuracy}% - 모든 링크가 양호합니다!`;
+        icon = '✅';
+    } else {
+        body = `⚠️ ${totalLinks}개 링크 분석 완료\n평균 정확도: ${avgAccuracy}%\n${lowAccuracyLinks}개 링크 수정 필요`;
+        icon = '⚠️';
+    }
+    
+    showNotification(title, {
+        body: body,
+        icon: icon,
+        tag: 'analysis-complete'
+    });
+}
+
+async function handleNotificationToggle() {
+    if (Notification.permission === 'denied') {
+        showToast('브라우저에서 알림이 차단되어 있습니다. 브라우저 설정에서 알림을 허용해주세요.', 'error');
+        return;
+    }
+    
+    if (!notificationsEnabled) {
+        const granted = await requestNotificationPermission();
+        if (granted) {
+            showToast('알림이 활성화되었습니다!', 'success');
+        } else {
+            showToast('알림 권한이 거부되었습니다.', 'error');
+        }
+    } else {
+        notificationsEnabled = false;
+        showToast('알림이 비활성화되었습니다.', 'info');
+    }
+    
+    updateNotificationButtonState();
+}
+
+function updateNotificationButtonState() {
+    const notificationBtn = document.getElementById('notification-btn');
+    if (!notificationBtn) return;
+    
+    if (notificationsEnabled) {
+        notificationBtn.textContent = '🔔';
+        notificationBtn.title = '알림 활성화됨 (클릭하여 비활성화)';
+        notificationBtn.style.backgroundColor = '#4CAF50';
+        notificationBtn.style.color = 'white';
+    } else {
+        notificationBtn.textContent = '🔕';
+        notificationBtn.title = '알림 비활성화됨 (클릭하여 활성화)';
+        notificationBtn.style.backgroundColor = '#f5f5f5';
+        notificationBtn.style.color = '#666';
+    }
+}
+
 // 이벤트 리스너 등록
 document.addEventListener('DOMContentLoaded', function() {
     // 기본 title 설정
     document.title = '🍊 오렌지레터 링크 검증 도구';
+    
+    // 알림 권한 요청
+    requestNotificationPermission();
+    
+    // 알림 버튼 이벤트 리스너
+    const notificationBtn = document.getElementById('notification-btn');
+    if (notificationBtn) {
+        notificationBtn.addEventListener('click', handleNotificationToggle);
+        updateNotificationButtonState();
+    }
     
     elements.analyzeBtn.addEventListener('click', handleAnalyze);
     elements.urlInput.addEventListener('keypress', function(e) {
@@ -149,6 +283,9 @@ async function handleAnalyze() {
         
         hideLoading();
         displayResults(analysisData, links);
+        
+        // 분석 완료 알림 발송
+        sendAnalysisCompleteNotification(analysisData);
         
     } catch (error) {
         console.error('분석 중 오류 발생:', error);
