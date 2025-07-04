@@ -6,10 +6,10 @@ import re
 import socketserver
 import webbrowser
 from urllib.parse import parse_qs, urlparse
-from dotenv import load_dotenv
 
 import requests
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -17,7 +17,8 @@ load_dotenv()
 # Initialize Bedrock Claude if available
 try:
     from bedrock_claude import BedrockClaude
-    bedrock_claude = BedrockClaude() if os.environ.get('AWS_ACCESS_KEY_ID') else None
+
+    bedrock_claude = BedrockClaude() if os.environ.get("AWS_ACCESS_KEY_ID") else None
 except ImportError:
     bedrock_claude = None
 
@@ -34,30 +35,32 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.end_headers()
-    
+
     def do_POST(self):
         parsed_path = urlparse(self.path)
-        
+
         # Bedrock Claude batch analysis endpoint
         if parsed_path.path == "/api/analyze-batch":
-            content_length = int(self.headers.get('Content-Length', 0))
+            content_length = int(self.headers.get("Content-Length", 0))
             post_data = self.rfile.read(content_length)
-            
+
             try:
-                data = json.loads(post_data.decode('utf-8'))
-                links = data.get('links', [])
-                
+                data = json.loads(post_data.decode("utf-8"))
+                links = data.get("links", [])
+
                 if bedrock_claude and links:
                     # Use Bedrock Claude for batch analysis
                     analysis_results = bedrock_claude.analyze_links_batch(links)
-                    
+
                     response_data = json.dumps(analysis_results, ensure_ascii=False)
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json; charset=utf-8")
                     self.end_headers()
-                    self.wfile.write(response_data.encode('utf-8'))
+                    self.wfile.write(response_data.encode("utf-8"))
                 else:
-                    error_response = json.dumps({"error": "Bedrock Claude not configured or no links provided"})
+                    error_response = json.dumps(
+                        {"error": "Bedrock Claude not configured or no links provided"}
+                    )
                     self.send_response(400)
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
@@ -69,7 +72,7 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(error_response.encode())
             return
-        
+
         # Default to parent implementation
         super().do_POST()
 
