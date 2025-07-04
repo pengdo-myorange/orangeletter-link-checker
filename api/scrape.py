@@ -140,7 +140,7 @@ class handler(BaseHTTPRequestHandler):
                         except:
                             # 실패 시 일반적인 처리로 진행
                             pass
-                    response = requests.get(url, headers=headers, timeout=30, allow_redirects=True)  # Vercel Pro: 15s -> 30s
+                    response = requests.get(url, headers=headers, timeout=45, allow_redirects=True)  # Vercel Pro: 30s -> 45s
                     
                     # 404 페이지인지 먼저 확인
                     if response.status_code == 404:
@@ -635,7 +635,7 @@ class handler(BaseHTTPRequestHandler):
                         "keywords": ["timeout"],
                         "error": True,
                         "errorType": "timeout",
-                        "errorMessage": "페이지 로딩 시간 초과 (30초)"
+                        "errorMessage": "페이지 로딩 시간 초과 (45초)"
                     }
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json; charset=utf-8")

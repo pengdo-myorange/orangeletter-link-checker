@@ -21,7 +21,7 @@
   ],
   "functions": {
     "api/*.py": {
-      "maxDuration": 45
+      "maxDuration": 60
     }
   },
   "rewrites": [

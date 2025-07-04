@@ -351,7 +351,7 @@ async function handleAnalyze() {
         }
         
         async function analyzeLinksInBatches(links) {
-            const batchSize = 20;  // Vercel Pro: 10 -> 20으로 증가
+            const batchSize = 15;  // 타임아웃 45초 고려하여 20 -> 15로 조정
             
             for (let i = 0; i < links.length; i += batchSize) {
                 const batch = links.slice(i, i + batchSize);

@@ -94,7 +94,7 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                         "Connection": "keep-alive",
                         "Upgrade-Insecure-Requests": "1"
                     }
-                    response = requests.get(url, headers=headers, timeout=30, allow_redirects=True)  # 로컬: 15s -> 30s
+                    response = requests.get(url, headers=headers, timeout=45, allow_redirects=True)  # 로컬: 30s -> 45s
                     response.raise_for_status()
 
                     self.send_response(200)
@@ -224,7 +224,7 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                         "Connection": "keep-alive",
                         "Upgrade-Insecure-Requests": "1"
                     }
-                    response = requests.get(url, headers=headers, timeout=30, allow_redirects=True)  # 로컬: 15s -> 30s
+                    response = requests.get(url, headers=headers, timeout=45, allow_redirects=True)  # 로컬: 30s -> 45s
                     
                     # 404 페이지인지 먼저 확인
                     if response.status_code == 404:
