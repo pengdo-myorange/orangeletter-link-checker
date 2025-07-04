@@ -251,33 +251,46 @@ async function handleAnalyze() {
         // 3. 검증 대상 링크만 필터링
         const verifiedLinks = links.filter(link => isVerifiedCategory(link.category));
         
-        // 4. 각 링크 분석
+        // 4. 각 링크 분석 (병렬 처리)
         updateLoadingText('링크를 분석하는 중...');
         analysisData = [];
         
-        for (let i = 0; i < verifiedLinks.length; i++) {
-            const link = verifiedLinks[i];
-            updateProgress(i, verifiedLinks.length, `링크 분석 중... (${i + 1}/${verifiedLinks.length})`);
+        // 배치 크기 설정 (동시에 처리할 링크 수)
+        const batchSize = 5;
+        
+        for (let i = 0; i < verifiedLinks.length; i += batchSize) {
+            const batch = verifiedLinks.slice(i, i + batchSize);
+            const currentBatchStart = i;
             
-            try {
-                const pageInfo = await scrapePageInfo(link.url);
-                const analysis = analyzeLink(link, pageInfo);
-                analysisData.push(analysis);
-            } catch (error) {
-                console.error(`링크 분석 실패: ${link.url}`, error);
-                analysisData.push({
-                    ...link,
-                    accuracy: 0,
-                    issues: ['페이지 로드 실패'],
-                    suggestedText: link.text,
-                    pageInfo: null,
-                    error: error.message
-                });
-            }
+            // 배치 프로그레스 업데이트
+            updateProgress(currentBatchStart, verifiedLinks.length, 
+                `링크 분석 중... (${Math.min(i + batchSize, verifiedLinks.length)}/${verifiedLinks.length})`);
             
-            // 요청 간격 조절
-            if (i < verifiedLinks.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+            // 병렬로 배치 처리
+            const batchPromises = batch.map(async (link) => {
+                try {
+                    const pageInfo = await scrapePageInfo(link.url);
+                    return analyzeLink(link, pageInfo);
+                } catch (error) {
+                    console.error(`링크 분석 실패: ${link.url}`, error);
+                    return {
+                        ...link,
+                        accuracy: 0,
+                        issues: ['페이지 로드 실패'],
+                        suggestedText: link.text,
+                        pageInfo: null,
+                        error: error.message
+                    };
+                }
+            });
+            
+            // 배치 결과 수집
+            const batchResults = await Promise.all(batchPromises);
+            analysisData.push(...batchResults);
+            
+            // 다음 배치 전 짧은 지연 (서버 부하 방지)
+            if (i + batchSize < verifiedLinks.length) {
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
         }
         
