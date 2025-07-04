@@ -401,25 +401,8 @@ async function handleAnalyze() {
     }
 }
 
-// 뉴스레터 HTML 가져오기 (캐싱 추가)
+// 뉴스레터 HTML 가져오기 (캐시 비활성화)
 async function fetchNewsletterHtml(url) {
-    // 캐시 확인
-    const cacheKey = `newsletter_${url}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    
-    if (cached) {
-        try {
-            const cachedData = JSON.parse(cached);
-            // 1시간 캐시 유효
-            if (Date.now() - cachedData.timestamp < 60 * 60 * 1000) {
-                console.log(`뉴스레터 캐시 사용: ${url}`);
-                return cachedData.data;
-            }
-        } catch (e) {
-            // 캐시 파싱 실패 시 무시
-        }
-    }
-    
     try {
         // 로컬 서버의 API 엔드포인트 사용
         const response = await fetch(`/api/fetch?url=${encodeURIComponent(url)}`);
@@ -427,16 +410,6 @@ async function fetchNewsletterHtml(url) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         const html = await response.text();
-        
-        // 캐시 저장
-        try {
-            sessionStorage.setItem(cacheKey, JSON.stringify({
-                timestamp: Date.now(),
-                data: html
-            }));
-        } catch (e) {
-            // sessionStorage 용량 초과 시 무시
-        }
         
         return html;
     } catch (error) {
@@ -796,25 +769,8 @@ function isVerifiedCategory(category) {
     return Object.keys(CATEGORIES.VERIFIED).includes(category);
 }
 
-// 페이지 정보 스크래핑 (캐싱 추가)
+// 페이지 정보 스크래핑 (캐시 비활성화)
 async function scrapePageInfo(url) {
-    // 캐시 확인
-    const cacheKey = `scrape_${url}`;
-    const cached = localStorage.getItem(cacheKey);
-    
-    if (cached) {
-        try {
-            const cachedData = JSON.parse(cached);
-            // 24시간 캐시 유효
-            if (Date.now() - cachedData.timestamp < 24 * 60 * 60 * 1000) {
-                console.log(`캐시 사용: ${url}`);
-                return cachedData.data;
-            }
-        } catch (e) {
-            // 캐시 파싱 실패 시 무시
-        }
-    }
-    
     try {
         // 로컬 서버의 스크래핑 API 사용
         const response = await fetch(`/api/scrape?url=${encodeURIComponent(url)}`);
@@ -822,17 +778,6 @@ async function scrapePageInfo(url) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         const pageInfo = await response.json();
-        
-        // 캐시 저장
-        try {
-            localStorage.setItem(cacheKey, JSON.stringify({
-                timestamp: Date.now(),
-                data: pageInfo
-            }));
-        } catch (e) {
-            // localStorage 용량 초과 시 오래된 캐시 삭제
-            clearOldCache();
-        }
         
         return pageInfo;
     } catch (error) {
@@ -852,29 +797,6 @@ async function scrapePageInfo(url) {
     }
 }
 
-// 오래된 캐시 삭제 함수
-function clearOldCache() {
-    const keys = Object.keys(localStorage);
-    const scrapeKeys = keys.filter(k => k.startsWith('scrape_'));
-    const now = Date.now();
-    
-    // 가장 오래된 항목부터 삭제
-    scrapeKeys.sort((a, b) => {
-        try {
-            const aData = JSON.parse(localStorage.getItem(a));
-            const bData = JSON.parse(localStorage.getItem(b));
-            return (aData.timestamp || 0) - (bData.timestamp || 0);
-        } catch (e) {
-            return 0;
-        }
-    });
-    
-    // 절반 삭제
-    const toRemove = Math.floor(scrapeKeys.length / 2);
-    for (let i = 0; i < toRemove; i++) {
-        localStorage.removeItem(scrapeKeys[i]);
-    }
-}
 
 // 시뮬레이션된 페이지 정보 생성
 function generateSimulatedPageInfo(url) {
