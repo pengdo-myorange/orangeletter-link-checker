@@ -1,0 +1,16 @@
+{
+  "name": "orangeletter-link-checker",
+  "version": "1.0.0",
+  "description": "오렌지레터 링크 검증 도구",
+  "main": "script.js",
+  "scripts": {
+    "start": "python3 server.py",
+    "dev": "python3 server.py"
+  },
+  "keywords": ["orangeletter", "link-checker", "newsletter"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@vercel/edge-config": "^0.4.1"
+  }
+}

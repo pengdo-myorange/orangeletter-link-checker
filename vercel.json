@@ -19,6 +19,11 @@
       ]
     }
   ],
+  "functions": {
+    "api/*.py": {
+      "maxDuration": 45
+    }
+  },
   "rewrites": [
     { "source": "/api/fetch", "destination": "/api/fetch.py" },
     { "source": "/api/scrape", "destination": "/api/scrape.py" },

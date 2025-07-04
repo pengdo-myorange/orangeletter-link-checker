@@ -351,7 +351,7 @@ async function handleAnalyze() {
         }
         
         async function analyzeLinksInBatches(links) {
-            const batchSize = 10;  // 5 -> 10으로 증가
+            const batchSize = 20;  // Vercel Pro: 10 -> 20으로 증가
             
             for (let i = 0; i < links.length; i += batchSize) {
                 const batch = links.slice(i, i + batchSize);

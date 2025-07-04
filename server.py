@@ -94,7 +94,7 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                         "Connection": "keep-alive",
                         "Upgrade-Insecure-Requests": "1"
                     }
-                    response = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
+                    response = requests.get(url, headers=headers, timeout=30, allow_redirects=True)  # 로컬: 15s -> 30s
                     response.raise_for_status()
 
                     self.send_response(200)
@@ -132,7 +132,7 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                         "Connection": "keep-alive",
                         "Upgrade-Insecure-Requests": "1"
                     }
-                    response = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
+                    response = requests.get(url, headers=headers, timeout=30, allow_redirects=True)  # 로컬: 15s -> 30s
                     response.raise_for_status()
 
                     soup = BeautifulSoup(response.content, "html.parser")
