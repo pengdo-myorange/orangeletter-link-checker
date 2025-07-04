@@ -272,7 +272,7 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                                 "keywords": ["보안검증"],
                                 "error": False,
                                 "note": "이 페이지는 보안 검증이 필요합니다. 브라우저에서 직접 확인해주세요.",
-                                "site_name": urlparse(url).netloc
+                                "site_name": url.split('/')[2] if '://' in url else url
                             }
                             
                             # 도메인별 추가 정보
@@ -601,8 +601,11 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                             break
 
                     # URL에서 사이트 정보 추출
-                    parsed_url = urlparse(url)
-                    site_name = parsed_url.netloc
+                    try:
+                        parsed_url = urlparse(url)
+                        site_name = parsed_url.netloc
+                    except:
+                        site_name = url.split('/')[2] if '://' in url else url
 
                     page_info = {
                         "title": title or "Unknown Title",

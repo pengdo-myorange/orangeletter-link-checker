@@ -93,7 +93,6 @@ class handler(BaseHTTPRequestHandler):
                     if "thepromise.or.kr" in url:
                         # 메타 정보에서 제목 추출 시도
                         try:
-                            import re
                             simple_headers = {
                                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                             }
@@ -189,7 +188,7 @@ class handler(BaseHTTPRequestHandler):
                                 "keywords": ["보안검증"],
                                 "error": False,
                                 "note": "이 페이지는 보안 검증이 필요합니다. 브라우저에서 직접 확인해주세요.",
-                                "site_name": urlparse(url).netloc
+                                "site_name": url.split('/')[2] if '://' in url else url
                             }
                             
                             # 도메인별 추가 정보
@@ -488,14 +487,18 @@ class handler(BaseHTTPRequestHandler):
                             img_src = img.get("src")
 
                             # 상대 URL을 절대 URL로 변환
-                            if img_src.startswith("//"):
-                                img_src = "https:" + img_src
-                            elif img_src.startswith("/"):
-                                parsed_base = urlparse(url)
-                                img_src = f"{parsed_base.scheme}://{parsed_base.netloc}{img_src}"
-                            elif not img_src.startswith(("http://", "https://")):
-                                parsed_base = urlparse(url)
-                                img_src = f"{parsed_base.scheme}://{parsed_base.netloc}/{img_src.lstrip('/')}"
+                            try:
+                                if img_src.startswith("//"):
+                                    img_src = "https:" + img_src
+                                elif img_src.startswith("/"):
+                                    parsed_base = urlparse(url)
+                                    img_src = f"{parsed_base.scheme}://{parsed_base.netloc}{img_src}"
+                                elif not img_src.startswith(("http://", "https://")):
+                                    parsed_base = urlparse(url)
+                                    img_src = f"{parsed_base.scheme}://{parsed_base.netloc}/{img_src.lstrip('/')}"
+                            except:
+                                # URL 파싱 실패 시 원본 사용
+                                pass
 
                             images.append(
                                 {
@@ -535,8 +538,11 @@ class handler(BaseHTTPRequestHandler):
                             break
 
                     # URL에서 사이트 정보 추출
-                    parsed_url = urlparse(url)
-                    site_name = parsed_url.netloc
+                    try:
+                        parsed_url = urlparse(url)
+                        site_name = parsed_url.netloc
+                    except:
+                        site_name = url.split('/')[2] if '://' in url else url
 
                     # OCR 텍스트를 기존 텍스트와 통합하여 재분석
                     if ocr_text.strip():
@@ -651,7 +657,6 @@ class handler(BaseHTTPRequestHandler):
                         status_code = e.response.status_code
                     else:
                         # response가 없는 경우 에러 메시지에서 상태 코드 추출 시도
-                        import re
                         match = re.search(r'(\d{3})', str(e))
                         if match:
                             status_code = int(match.group(1))
