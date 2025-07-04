@@ -124,6 +124,27 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             if url:
                 try:
+                    # 특정 사이트에 대한 특별 처리
+                    if "forms.gle" in url or "docs.google.com/forms" in url:
+                        # Google Forms는 JavaScript 렌더링 필요
+                        page_info = {
+                            "title": "Google Form",
+                            "description": "구글 폼 신청서",
+                            "organizer": "Google Forms",
+                            "period": "확인 필요",
+                            "location": "온라인",
+                            "target": "확인 필요",
+                            "keywords": ["신청", "폼"],
+                            "error": False,
+                            "note": "구글 폼은 직접 방문이 필요합니다"
+                        }
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self.end_headers()
+                        response_data = json.dumps(page_info, ensure_ascii=False)
+                        self.wfile.write(response_data.encode("utf-8"))
+                        return
+                    
                     headers = {
                         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",

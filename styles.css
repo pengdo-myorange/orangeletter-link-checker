@@ -604,6 +604,28 @@ body {
     font-size: 12px;
 }
 
+/* 에러 상태 스타일 */
+.error-details {
+    background-color: #fff5f5;
+    border-left-color: #dc3545;
+}
+
+.error-row .error-message {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.issues-text.error {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.note-text {
+    color: #6c757d;
+    font-style: italic;
+    font-size: 12px;
+}
+
 .category-badge {
     display: inline-flex;
     align-items: center;

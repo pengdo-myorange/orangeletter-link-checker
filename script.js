@@ -938,6 +938,18 @@ function analyzeLink(link, pageInfo) {
 function generateIdealLinkText(category, pageInfo) {
     if (!pageInfo) return '';
     
+    // 에러가 있는 경우 에러 타입에 따른 텍스트 반환
+    if (pageInfo.error) {
+        if (pageInfo.errorType === 'timeout') {
+            return pageInfo.errorMessage || '시간 초과';
+        } else if (pageInfo.errorType === 'http') {
+            return pageInfo.errorMessage || `HTTP ${pageInfo.errorCode} 오류`;
+        } else if (pageInfo.errorType === 'general') {
+            return '페이지 로드 실패';
+        }
+        return pageInfo.title || '페이지 로드 실패';
+    }
+    
     const rules = getCategoryRules(category);
     let text = '';
     
@@ -954,7 +966,7 @@ function generateIdealLinkText(category, pageInfo) {
         case 'funding':
             // 프로젝트명 펀딩 (~마감일)
             text = pageInfo.title;
-            if (pageInfo.keywords.some(k => ['펀딩', '캠페인'].includes(k))) {
+            if (pageInfo.keywords && pageInfo.keywords.some(k => ['펀딩', '캠페인'].includes(k))) {
                 text += ' 펀딩';
             }
             if (pageInfo.period) text += ` (~${formatPeriod(pageInfo.period)})`;
@@ -1040,6 +1052,11 @@ function getCategoryRules(category) {
 
 // 정확도 계산
 function calculateAccuracy(currentText, suggestedText, pageInfo, category) {
+    // 에러가 있는 경우 0점 반환
+    if (pageInfo && pageInfo.error) {
+        return 0;
+    }
+    
     const scores = calculateDetailedScore(currentText, suggestedText, pageInfo, category);
     return Math.round(
         (scores.coreInfo.score / scores.coreInfo.max) * 40 +
@@ -1051,6 +1068,16 @@ function calculateAccuracy(currentText, suggestedText, pageInfo, category) {
 
 // 상세 점수 계산
 function calculateDetailedScore(currentText, suggestedText, pageInfo, category) {
+    // 에러가 있는 경우 0점 반환
+    if (pageInfo && pageInfo.error) {
+        return {
+            coreInfo: { score: 0, max: 40 },
+            accuracy: { score: 0, max: 30 },
+            readability: { score: 0, max: 20 },
+            consistency: { score: 0, max: 10 }
+        };
+    }
+    
     const rules = getCategoryRules(category);
     
     // 핵심 정보 포함 여부 (40%)
@@ -1058,7 +1085,7 @@ function calculateDetailedScore(currentText, suggestedText, pageInfo, category) 
     const coreInfoMax = rules.requiredFields.length * 10;
     
     rules.requiredFields.forEach(field => {
-        if (pageInfo[field] && currentText.includes(pageInfo[field])) {
+        if (pageInfo && pageInfo[field] && currentText.includes(pageInfo[field])) {
             coreInfoScore += 10;
         }
     });
@@ -1069,7 +1096,7 @@ function calculateDetailedScore(currentText, suggestedText, pageInfo, category) 
     
     // 잘못된 정보가 있는지 체크 (간단한 휴리스틱)
     if (currentText.length < 10) accuracyScore -= 10;
-    if (!pageInfo.title || !currentText.toLowerCase().includes(pageInfo.title.toLowerCase().substring(0, 5))) {
+    if (!pageInfo || !pageInfo.title || !currentText.toLowerCase().includes(pageInfo.title.toLowerCase().substring(0, 5))) {
         accuracyScore -= 10;
     }
     
@@ -1103,10 +1130,23 @@ function calculateDetailedScore(currentText, suggestedText, pageInfo, category) 
 // 이슈 식별
 function identifyIssues(currentText, pageInfo, category) {
     const issues = [];
+    
+    // 에러가 있는 경우 에러 타입을 이슈로 추가
+    if (pageInfo && pageInfo.error) {
+        if (pageInfo.errorType === 'timeout') {
+            issues.push('시간 초과');
+        } else if (pageInfo.errorType === 'http') {
+            issues.push(`HTTP ${pageInfo.errorCode} 오류`);
+        } else {
+            issues.push('페이지 로드 실패');
+        }
+        return issues;
+    }
+    
     const rules = getCategoryRules(category);
     
     rules.requiredFields.forEach(field => {
-        if (!pageInfo[field] || !currentText.includes(pageInfo[field])) {
+        if (!pageInfo || !pageInfo[field] || !currentText.includes(pageInfo[field])) {
             if (field === 'period') issues.push('날짜누락');
             else if (field === 'organizer') issues.push('주최불명');
             else if (field === 'location') issues.push('장소누락');
@@ -1260,6 +1300,41 @@ function generateInlineDetails(item) {
     
     const breakdown = item.breakdown;
     const pageInfo = item.pageInfo;
+    
+    // 에러가 있는 경우 에러 정보 표시
+    if (pageInfo.error) {
+        let errorMessage = '';
+        if (pageInfo.errorType === 'timeout') {
+            errorMessage = pageInfo.errorMessage || '페이지 로딩 시간 초과';
+        } else if (pageInfo.errorType === 'http') {
+            errorMessage = pageInfo.errorMessage || `HTTP ${pageInfo.errorCode} 오류`;
+        } else {
+            errorMessage = pageInfo.errorMessage || '페이지 로드 실패';
+        }
+        
+        return `
+            <div class="inline-details error-details">
+                <div class="detail-row error-row">
+                    <span class="detail-label">오류:</span>
+                    <span class="error-message">${escapeHtml(errorMessage)}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">사이트:</span>
+                    <span class="site-name">${escapeHtml(pageInfo.site_name || item.url)}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">이슈:</span>
+                    <span class="issues-text error">${item.issues.join(', ')}</span>
+                </div>
+                ${pageInfo.note ? `
+                <div class="detail-row">
+                    <span class="detail-label">참고:</span>
+                    <span class="note-text">${escapeHtml(pageInfo.note)}</span>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }
     
     return `
         <div class="inline-details">
