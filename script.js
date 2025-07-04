@@ -201,6 +201,22 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Enter') handleAnalyze();
     });
     
+    // URL 입력 중 프리페칭
+    let prefetchTimeout;
+    elements.urlInput.addEventListener('input', function(e) {
+        clearTimeout(prefetchTimeout);
+        const url = e.target.value.trim();
+        
+        // URL이 유효하고 오렌지레터 도메인인 경우 프리페칭
+        if (isValidUrl(url) && url.includes('orangeletter.net')) {
+            prefetchTimeout = setTimeout(() => {
+                // 백그라운드에서 HTML 미리 가져오기
+                fetchNewsletterHtml(url).catch(() => {});
+                console.log('프리페칭 시작:', url);
+            }, 1000); // 1초 후에 프리페칭
+        }
+    });
+    
     elements.categoryFilter.addEventListener('change', applyFilters);
     
     elements.modalClose.addEventListener('click', hideModal);
@@ -256,7 +272,7 @@ async function handleAnalyze() {
         analysisData = [];
         
         // 배치 크기 설정 (동시에 처리할 링크 수)
-        const batchSize = 5;
+        const batchSize = 10;  // 5 -> 10으로 증가
         
         for (let i = 0; i < verifiedLinks.length; i += batchSize) {
             const batch = verifiedLinks.slice(i, i + batchSize);
@@ -288,10 +304,8 @@ async function handleAnalyze() {
             const batchResults = await Promise.all(batchPromises);
             analysisData.push(...batchResults);
             
-            // 다음 배치 전 짧은 지연 (서버 부하 방지)
-            if (i + batchSize < verifiedLinks.length) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
+            // 다음 배치 전 지연 제거 (필요시에만 추가)
+            // 서버가 rate limit를 가지고 있다면 이 부분을 조정하세요
         }
         
         hideLoading();
@@ -307,15 +321,44 @@ async function handleAnalyze() {
     }
 }
 
-// 뉴스레터 HTML 가져오기
+// 뉴스레터 HTML 가져오기 (캐싱 추가)
 async function fetchNewsletterHtml(url) {
+    // 캐시 확인
+    const cacheKey = `newsletter_${url}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    
+    if (cached) {
+        try {
+            const cachedData = JSON.parse(cached);
+            // 1시간 캐시 유효
+            if (Date.now() - cachedData.timestamp < 60 * 60 * 1000) {
+                console.log(`뉴스레터 캐시 사용: ${url}`);
+                return cachedData.data;
+            }
+        } catch (e) {
+            // 캐시 파싱 실패 시 무시
+        }
+    }
+    
     try {
         // 로컬 서버의 API 엔드포인트 사용
         const response = await fetch(`/api/fetch?url=${encodeURIComponent(url)}`);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        return await response.text();
+        const html = await response.text();
+        
+        // 캐시 저장
+        try {
+            sessionStorage.setItem(cacheKey, JSON.stringify({
+                timestamp: Date.now(),
+                data: html
+            }));
+        } catch (e) {
+            // sessionStorage 용량 초과 시 무시
+        }
+        
+        return html;
     } catch (error) {
         throw new Error(`뉴스레터 데이터 가져오기 실패: ${error.message}`);
     }
@@ -673,8 +716,25 @@ function isVerifiedCategory(category) {
     return Object.keys(CATEGORIES.VERIFIED).includes(category);
 }
 
-// 페이지 정보 스크래핑
+// 페이지 정보 스크래핑 (캐싱 추가)
 async function scrapePageInfo(url) {
+    // 캐시 확인
+    const cacheKey = `scrape_${url}`;
+    const cached = localStorage.getItem(cacheKey);
+    
+    if (cached) {
+        try {
+            const cachedData = JSON.parse(cached);
+            // 24시간 캐시 유효
+            if (Date.now() - cachedData.timestamp < 24 * 60 * 60 * 1000) {
+                console.log(`캐시 사용: ${url}`);
+                return cachedData.data;
+            }
+        } catch (e) {
+            // 캐시 파싱 실패 시 무시
+        }
+    }
+    
     try {
         // 로컬 서버의 스크래핑 API 사용
         const response = await fetch(`/api/scrape?url=${encodeURIComponent(url)}`);
@@ -682,11 +742,47 @@ async function scrapePageInfo(url) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         const pageInfo = await response.json();
+        
+        // 캐시 저장
+        try {
+            localStorage.setItem(cacheKey, JSON.stringify({
+                timestamp: Date.now(),
+                data: pageInfo
+            }));
+        } catch (e) {
+            // localStorage 용량 초과 시 오래된 캐시 삭제
+            clearOldCache();
+        }
+        
         return pageInfo;
     } catch (error) {
         console.warn(`페이지 스크래핑 실패 (${url}):`, error.message);
         // 실패시 시뮬레이션된 데이터 반환
         return generateSimulatedPageInfo(url);
+    }
+}
+
+// 오래된 캐시 삭제 함수
+function clearOldCache() {
+    const keys = Object.keys(localStorage);
+    const scrapeKeys = keys.filter(k => k.startsWith('scrape_'));
+    const now = Date.now();
+    
+    // 가장 오래된 항목부터 삭제
+    scrapeKeys.sort((a, b) => {
+        try {
+            const aData = JSON.parse(localStorage.getItem(a));
+            const bData = JSON.parse(localStorage.getItem(b));
+            return (aData.timestamp || 0) - (bData.timestamp || 0);
+        } catch (e) {
+            return 0;
+        }
+    });
+    
+    // 절반 삭제
+    const toRemove = Math.floor(scrapeKeys.length / 2);
+    for (let i = 0; i < toRemove; i++) {
+        localStorage.removeItem(scrapeKeys[i]);
     }
 }
 

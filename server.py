@@ -6,9 +6,20 @@ import re
 import socketserver
 import webbrowser
 from urllib.parse import parse_qs, urlparse
+from dotenv import load_dotenv
 
 import requests
 from bs4 import BeautifulSoup
+
+# Load environment variables
+load_dotenv()
+
+# Initialize Bedrock Claude if available
+try:
+    from bedrock_claude import BedrockClaude
+    bedrock_claude = BedrockClaude() if os.environ.get('AWS_ACCESS_KEY_ID') else None
+except ImportError:
+    bedrock_claude = None
 
 PORT = 8080
 
@@ -23,6 +34,44 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.end_headers()
+    
+    def do_POST(self):
+        parsed_path = urlparse(self.path)
+        
+        # Bedrock Claude batch analysis endpoint
+        if parsed_path.path == "/api/analyze-batch":
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+                links = data.get('links', [])
+                
+                if bedrock_claude and links:
+                    # Use Bedrock Claude for batch analysis
+                    analysis_results = bedrock_claude.analyze_links_batch(links)
+                    
+                    response_data = json.dumps(analysis_results, ensure_ascii=False)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(response_data.encode('utf-8'))
+                else:
+                    error_response = json.dumps({"error": "Bedrock Claude not configured or no links provided"})
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(error_response.encode())
+            except Exception as e:
+                error_response = json.dumps({"error": str(e)})
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(error_response.encode())
+            return
+        
+        # Default to parent implementation
+        super().do_POST()
 
     def do_GET(self):
         parsed_path = urlparse(self.path)
