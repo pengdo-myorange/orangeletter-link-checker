@@ -154,6 +154,29 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                         "Upgrade-Insecure-Requests": "1"
                     }
                     response = requests.get(url, headers=headers, timeout=30, allow_redirects=True)  # 로컬: 15s -> 30s
+                    
+                    # 404 페이지인지 먼저 확인
+                    if response.status_code == 404:
+                        page_info = {
+                            "title": "페이지를 찾을 수 없음",
+                            "description": "요청한 페이지가 존재하지 않습니다",
+                            "organizer": "Unknown",
+                            "period": "Unknown",
+                            "location": "Unknown",
+                            "target": "Unknown",
+                            "keywords": ["error"],
+                            "error": True,
+                            "errorType": "http",
+                            "errorCode": 404,
+                            "errorMessage": "HTTP 404 오류 (페이지를 찾을 수 없음)"
+                        }
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self.end_headers()
+                        response_data = json.dumps(page_info, ensure_ascii=False)
+                        self.wfile.write(response_data.encode("utf-8"))
+                        return
+                    
                     response.raise_for_status()
 
                     soup = BeautifulSoup(response.content, "html.parser")

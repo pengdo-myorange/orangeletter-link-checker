@@ -51,6 +51,30 @@ class handler(BaseHTTPRequestHandler):
                         "Upgrade-Insecure-Requests": "1"
                     }
                     response = requests.get(url, headers=headers, timeout=30, allow_redirects=True)  # Vercel Pro: 15s -> 30s
+                    
+                    # 404 페이지인지 먼저 확인
+                    if response.status_code == 404:
+                        page_info = {
+                            "title": "페이지를 찾을 수 없음",
+                            "description": "요청한 페이지가 존재하지 않습니다",
+                            "organizer": "Unknown",
+                            "period": "Unknown",
+                            "location": "Unknown",
+                            "target": "Unknown",
+                            "keywords": ["error"],
+                            "error": True,
+                            "errorType": "http",
+                            "errorCode": 404,
+                            "errorMessage": "HTTP 404 오류 (페이지를 찾을 수 없음)"
+                        }
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.end_headers()
+                        response_data = json.dumps(page_info, ensure_ascii=False)
+                        self.wfile.write(response_data.encode("utf-8"))
+                        return
+                    
                     response.raise_for_status()
 
                     soup = BeautifulSoup(response.content, "html.parser")
@@ -493,7 +517,16 @@ class handler(BaseHTTPRequestHandler):
                     return
                 except requests.exceptions.HTTPError as e:
                     # HTTP 에러 처리 (404, 403 등)
-                    status_code = e.response.status_code if e.response else 0
+                    status_code = 0
+                    if hasattr(e, 'response') and e.response is not None:
+                        status_code = e.response.status_code
+                    else:
+                        # response가 없는 경우 에러 메시지에서 상태 코드 추출 시도
+                        import re
+                        match = re.search(r'(\d{3})', str(e))
+                        if match:
+                            status_code = int(match.group(1))
+                    
                     error_messages = {
                         403: "접근 거부 (봇 차단)",
                         404: "페이지를 찾을 수 없음",
@@ -501,7 +534,7 @@ class handler(BaseHTTPRequestHandler):
                         503: "서비스 일시 중단"
                     }
                     page_info = {
-                        "title": f"HTTP {status_code} 오류",
+                        "title": f"HTTP {status_code} 오류" if status_code else "HTTP 오류",
                         "description": error_messages.get(status_code, str(e)),
                         "organizer": "Unknown",
                         "period": "Unknown",
@@ -511,7 +544,7 @@ class handler(BaseHTTPRequestHandler):
                         "error": True,
                         "errorType": "http",
                         "errorCode": status_code,
-                        "errorMessage": error_messages.get(status_code, f"HTTP {status_code} 에러")
+                        "errorMessage": error_messages.get(status_code, f"HTTP {status_code} 에러" if status_code else str(e))
                     }
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json; charset=utf-8")
