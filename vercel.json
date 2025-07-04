@@ -19,11 +19,6 @@
       ]
     }
   ],
-  "functions": {
-    "api/*.py": {
-      "runtime": "python3.9"
-    }
-  },
   "rewrites": [
     { "source": "/api/fetch", "destination": "/api/fetch.py" },
     { "source": "/api/scrape", "destination": "/api/scrape.py" },
