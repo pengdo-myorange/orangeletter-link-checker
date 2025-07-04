@@ -70,6 +70,37 @@ body {
     transform: scale(1.1);
 }
 
+.notification-btn.active {
+    background-color: #ff6b6b;
+    color: white;
+}
+
+/* AI 분석 버튼 스타일 */
+#ai-toggle-btn {
+    position: relative;
+}
+
+#ai-toggle-btn.active {
+    background-color: #4a90e2;
+    color: white;
+}
+
+#ai-toggle-btn.active::after {
+    content: '✓';
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #28a745;
+    color: white;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* URL 입력 영역 */
 .input-section {
     background: white;

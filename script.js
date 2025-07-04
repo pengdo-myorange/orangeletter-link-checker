@@ -55,7 +55,8 @@ const elements = {
     detailModal: document.getElementById('detail-modal'),
     modalClose: document.getElementById('modal-close'),
     modalCancel: document.getElementById('modal-cancel'),
-    toastContainer: document.getElementById('toast-container')
+    toastContainer: document.getElementById('toast-container'),
+    aiToggleBtn: document.getElementById('ai-toggle-btn')
 };
 
 // 푸시 알림 관련 함수
@@ -181,6 +182,35 @@ function updateNotificationButtonState() {
     }
 }
 
+// AI 분석 관련 함수
+function handleAIToggle() {
+    const useBedrockAPI = localStorage.getItem('useBedrockAPI') === 'true';
+    
+    if (!useBedrockAPI) {
+        localStorage.setItem('useBedrockAPI', 'true');
+        showToast('AI 분석이 활성화되었습니다! 다음 분석부터 적용됩니다.', 'success');
+    } else {
+        localStorage.setItem('useBedrockAPI', 'false');
+        showToast('AI 분석이 비활성화되었습니다.', 'info');
+    }
+    
+    updateAIButtonState();
+}
+
+function updateAIButtonState() {
+    if (!elements.aiToggleBtn) return;
+    
+    const useBedrockAPI = localStorage.getItem('useBedrockAPI') === 'true';
+    
+    if (useBedrockAPI) {
+        elements.aiToggleBtn.classList.add('active');
+        elements.aiToggleBtn.title = 'AI 분석 활성화됨 (클릭하여 비활성화)';
+    } else {
+        elements.aiToggleBtn.classList.remove('active');
+        elements.aiToggleBtn.title = 'AI 분석 비활성화됨 (클릭하여 활성화)';
+    }
+}
+
 // 이벤트 리스너 등록
 document.addEventListener('DOMContentLoaded', function() {
     // 기본 title 설정
@@ -194,6 +224,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (notificationBtn) {
         notificationBtn.addEventListener('click', handleNotificationToggle);
         updateNotificationButtonState();
+    }
+    
+    // AI 분석 버튼 설정
+    if (elements.aiToggleBtn) {
+        elements.aiToggleBtn.addEventListener('click', handleAIToggle);
+        updateAIButtonState();
     }
     
     elements.analyzeBtn.addEventListener('click', handleAnalyze);
@@ -267,45 +303,89 @@ async function handleAnalyze() {
         // 3. 검증 대상 링크만 필터링
         const verifiedLinks = links.filter(link => isVerifiedCategory(link.category));
         
-        // 4. 각 링크 분석 (병렬 처리)
+        // 4. 각 링크 분석 - Bedrock Claude API 사용 시도
         updateLoadingText('링크를 분석하는 중...');
         analysisData = [];
         
-        // 배치 크기 설정 (동시에 처리할 링크 수)
-        const batchSize = 10;  // 5 -> 10으로 증가
+        // Bedrock Claude API 사용 가능 여부 확인
+        const useBedrockAPI = localStorage.getItem('useBedrockAPI') === 'true';
         
-        for (let i = 0; i < verifiedLinks.length; i += batchSize) {
-            const batch = verifiedLinks.slice(i, i + batchSize);
-            const currentBatchStart = i;
-            
-            // 배치 프로그레스 업데이트
-            updateProgress(currentBatchStart, verifiedLinks.length, 
-                `링크 분석 중... (${Math.min(i + batchSize, verifiedLinks.length)}/${verifiedLinks.length})`);
-            
-            // 병렬로 배치 처리
-            const batchPromises = batch.map(async (link) => {
-                try {
-                    const pageInfo = await scrapePageInfo(link.url);
-                    return analyzeLink(link, pageInfo);
-                } catch (error) {
-                    console.error(`링크 분석 실패: ${link.url}`, error);
-                    return {
-                        ...link,
-                        accuracy: 0,
-                        issues: ['페이지 로드 실패'],
-                        suggestedText: link.text,
-                        pageInfo: null,
-                        error: error.message
-                    };
+        if (useBedrockAPI) {
+            try {
+                // Bedrock Claude API로 일괄 분석
+                updateLoadingText('AI로 링크를 일괄 분석하는 중...');
+                const response = await fetch('/api/analyze-batch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ links: verifiedLinks })
+                });
+                
+                if (response.ok) {
+                    const results = await response.json();
+                    // AI 분석 결과를 기존 포맷에 맞게 변환
+                    for (let i = 0; i < verifiedLinks.length; i++) {
+                        const link = verifiedLinks[i];
+                        const aiResult = results[link.url] || {};
+                        analysisData.push({
+                            ...link,
+                            pageInfo: aiResult.key_info || {},
+                            suggestedText: aiResult.suggested_text || link.text,
+                            accuracy: aiResult.accuracy || 0,
+                            issues: aiResult.issues || [],
+                            breakdown: calculateDetailedScore(link.text, aiResult.suggested_text || link.text, aiResult.key_info || {}, link.category)
+                        });
+                    }
+                    showToast('AI 분석을 사용하여 빠르게 완료되었습니다!', 'success');
+                } else {
+                    throw new Error('Bedrock API 호출 실패');
                 }
-            });
+            } catch (error) {
+                console.warn('Bedrock API 사용 실패, 기본 방식으로 전환:', error);
+                showToast('AI 분석을 사용할 수 없어 기본 방식으로 진행합니다.', 'warning');
+                await analyzeLinksInBatches(verifiedLinks);
+            }
+        } else {
+            await analyzeLinksInBatches(verifiedLinks);
+        }
+        
+        async function analyzeLinksInBatches(links) {
+            const batchSize = 10;  // 5 -> 10으로 증가
             
-            // 배치 결과 수집
-            const batchResults = await Promise.all(batchPromises);
-            analysisData.push(...batchResults);
-            
-            // 다음 배치 전 지연 제거 (필요시에만 추가)
-            // 서버가 rate limit를 가지고 있다면 이 부분을 조정하세요
+            for (let i = 0; i < links.length; i += batchSize) {
+                const batch = links.slice(i, i + batchSize);
+                const currentBatchStart = i;
+                
+                // 배치 프로그레스 업데이트
+                updateProgress(currentBatchStart, links.length, 
+                    `링크 분석 중... (${Math.min(i + batchSize, links.length)}/${links.length})`);
+                
+                // 병렬로 배치 처리
+                const batchPromises = batch.map(async (link) => {
+                    try {
+                        const pageInfo = await scrapePageInfo(link.url);
+                        return analyzeLink(link, pageInfo);
+                    } catch (error) {
+                        console.error(`링크 분석 실패: ${link.url}`, error);
+                        return {
+                            ...link,
+                            accuracy: 0,
+                            issues: ['페이지 로드 실패'],
+                            suggestedText: link.text,
+                            pageInfo: null,
+                            error: error.message
+                        };
+                    }
+                });
+                
+                // 배치 결과 수집
+                const batchResults = await Promise.all(batchPromises);
+                analysisData.push(...batchResults);
+                
+                // 다음 배치 전 지연 제거 (필요시에만 추가)
+                // 서버가 rate limit를 가지고 있다면 이 부분을 조정하세요
+            }
         }
         
         hideLoading();

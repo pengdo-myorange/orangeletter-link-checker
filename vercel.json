@@ -18,5 +18,21 @@
         }
       ]
     }
+  ],
+  "functions": {
+    "api/fetch.py": {
+      "runtime": "python3.9"
+    },
+    "api/scrape.py": {
+      "runtime": "python3.9"
+    },
+    "api/analyze-batch.py": {
+      "runtime": "python3.9"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/fetch", "destination": "/api/fetch.py" },
+    { "source": "/api/scrape", "destination": "/api/scrape.py" },
+    { "source": "/api/analyze-batch", "destination": "/api/analyze-batch.py" }
   ]
 }
