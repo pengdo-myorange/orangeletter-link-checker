@@ -43,6 +43,52 @@ class handler(BaseHTTPRequestHandler):
                         self.wfile.write(response_data.encode("utf-8"))
                         return
                     
+                    # KOICA 사이트의 특별 처리 (로그인 필요)
+                    if "job.koica.go.kr" in url:
+                        page_info = {
+                            "title": "KOICA 채용공고",
+                            "description": "KOICA 채용공고 상세페이지",
+                            "organizer": "KOICA",
+                            "period": "확인 필요",
+                            "location": "확인 필요",
+                            "target": "확인 필요",
+                            "keywords": ["채용", "KOICA"],
+                            "error": False,
+                            "note": "KOICA 사이트는 로그인이 필요합니다. 브라우저에서 직접 확인해주세요.",
+                            "site_name": "job.koica.go.kr"
+                        }
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.end_headers()
+                        response_data = json.dumps(page_info, ensure_ascii=False)
+                        self.wfile.write(response_data.encode("utf-8"))
+                        return
+                    
+                    # 헤더 정의
+                    headers = {
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+                        "Accept-Encoding": "gzip, deflate, br",
+                        "Connection": "keep-alive",
+                        "Upgrade-Insecure-Requests": "1"
+                    }
+                    
+                    # bit.ly 단축 URL 처리
+                    if "bit.ly" in url:
+                        try:
+                            # 리다이렉트 따라가기
+                            response = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+                            final_url = response.url
+                            
+                            # 최종 URL로 다시 처리
+                            if final_url != url:
+                                url = final_url
+                                # 재귀적으로 처리하지 않고 계속 진행
+                        except:
+                            pass
+                    
                     # thepromise.or.kr 사이트의 특별 처리
                     if "thepromise.or.kr" in url:
                         # 메타 정보에서 제목 추출 시도
@@ -94,14 +140,6 @@ class handler(BaseHTTPRequestHandler):
                         except:
                             # 실패 시 일반적인 처리로 진행
                             pass
-                    headers = {
-                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
-                        "Accept-Encoding": "gzip, deflate, br",
-                        "Connection": "keep-alive",
-                        "Upgrade-Insecure-Requests": "1"
-                    }
                     response = requests.get(url, headers=headers, timeout=30, allow_redirects=True)  # Vercel Pro: 15s -> 30s
                     
                     # 404 페이지인지 먼저 확인
@@ -644,11 +682,71 @@ class handler(BaseHTTPRequestHandler):
                     response_data = json.dumps(page_info, ensure_ascii=False)
                     self.wfile.write(response_data.encode("utf-8"))
                     return
+                except requests.exceptions.ConnectionError as e:
+                    # 연결 에러 처리
+                    error_msg = str(e).lower()
+                    if "connection reset" in error_msg:
+                        error_desc = "서버가 연결을 거부했습니다"
+                    elif "connection refused" in error_msg:
+                        error_desc = "서버에 연결할 수 없습니다"
+                    elif "ssl" in error_msg:
+                        error_desc = "보안 연결 오류"
+                    else:
+                        error_desc = "네트워크 연결 오류"
+                    
+                    page_info = {
+                        "title": "연결 오류",
+                        "description": error_desc,
+                        "organizer": "Unknown",
+                        "period": "Unknown",
+                        "location": "Unknown",
+                        "target": "Unknown",
+                        "keywords": ["error"],
+                        "error": True,
+                        "errorType": "connection",
+                        "errorMessage": error_desc
+                    }
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    response_data = json.dumps(page_info, ensure_ascii=False)
+                    self.wfile.write(response_data.encode("utf-8"))
+                    return
+                except requests.exceptions.SSLError as e:
+                    # SSL 에러 처리
+                    page_info = {
+                        "title": "보안 연결 오류",
+                        "description": "SSL/TLS 인증서 문제가 발생했습니다",
+                        "organizer": "Unknown",
+                        "period": "Unknown",
+                        "location": "Unknown",
+                        "target": "Unknown",
+                        "keywords": ["error"],
+                        "error": True,
+                        "errorType": "ssl",
+                        "errorMessage": "보안 연결을 설정할 수 없습니다"
+                    }
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    response_data = json.dumps(page_info, ensure_ascii=False)
+                    self.wfile.write(response_data.encode("utf-8"))
+                    return
                 except Exception as e:
                     # 기타 에러 처리
+                    error_str = str(e)
+                    if "codec" in error_str.lower():
+                        error_desc = "문자 인코딩 오류"
+                    elif "json" in error_str.lower():
+                        error_desc = "데이터 형식 오류"
+                    else:
+                        error_desc = error_str[:100]  # 에러 메시지 길이 제한
+                    
                     page_info = {
                         "title": "페이지 로드 실패",
-                        "description": str(e),
+                        "description": error_desc,
                         "organizer": "Unknown",
                         "period": "Unknown",
                         "location": "Unknown",
@@ -656,7 +754,7 @@ class handler(BaseHTTPRequestHandler):
                         "keywords": ["error"],
                         "error": True,
                         "errorType": "general",
-                        "errorMessage": str(e)
+                        "errorMessage": error_desc
                     }
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json; charset=utf-8")

@@ -145,6 +145,27 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                         self.wfile.write(response_data.encode("utf-8"))
                         return
                     
+                    # KOICA 사이트의 특별 처리 (로그인 필요)
+                    if "job.koica.go.kr" in url:
+                        page_info = {
+                            "title": "KOICA 채용공고",
+                            "description": "KOICA 채용공고 상세페이지",
+                            "organizer": "KOICA",
+                            "period": "확인 필요",
+                            "location": "확인 필요",
+                            "target": "확인 필요",
+                            "keywords": ["채용", "KOICA"],
+                            "error": False,
+                            "note": "KOICA 사이트는 로그인이 필요합니다. 브라우저에서 직접 확인해주세요.",
+                            "site_name": "job.koica.go.kr"
+                        }
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self.end_headers()
+                        response_data = json.dumps(page_info, ensure_ascii=False)
+                        self.wfile.write(response_data.encode("utf-8"))
+                        return
+                    
                     # thepromise.or.kr 사이트의 특별 처리
                     if "thepromise.or.kr" in url:
                         # 메타 정보에서 제목 추출 시도
