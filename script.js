@@ -837,8 +837,18 @@ async function scrapePageInfo(url) {
         return pageInfo;
     } catch (error) {
         console.warn(`페이지 스크래핑 실패 (${url}):`, error.message);
-        // 실패시 시뮬레이션된 데이터 반환
-        return generateSimulatedPageInfo(url);
+        // 실패시 에러 정보와 함께 기본 정보 반환
+        return {
+            title: "페이지 로드 실패",
+            description: error.message || "페이지를 불러올 수 없습니다",
+            organizer: "Unknown",
+            period: "Unknown",
+            location: "Unknown",
+            target: "Unknown",
+            keywords: ["error"],
+            error: true,
+            errorMessage: error.message
+        };
     }
 }
 
