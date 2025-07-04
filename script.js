@@ -351,7 +351,7 @@ async function handleAnalyze() {
         }
         
         async function analyzeLinksInBatches(links) {
-            const batchSize = 15;  // 타임아웃 45초 고려하여 20 -> 15로 조정
+            const batchSize = 12;  // 안정성 우선하여 15 -> 12로 조정
             
             for (let i = 0; i < links.length; i += batchSize) {
                 const batch = links.slice(i, i + batchSize);
@@ -368,14 +368,34 @@ async function handleAnalyze() {
                         return analyzeLink(link, pageInfo);
                     } catch (error) {
                         console.error(`링크 분석 실패: ${link.url}`, error);
-                        return {
-                            ...link,
-                            accuracy: 0,
-                            issues: ['페이지 로드 실패'],
-                            suggestedText: link.text,
-                            pageInfo: null,
-                            error: error.message
+                        
+                        // 에러 타입에 따른 구체적인 정보 생성
+                        let errorPageInfo = {
+                            title: "페이지 로드 실패",
+                            description: error.message || "페이지를 불러올 수 없습니다",
+                            organizer: "Unknown",
+                            period: "Unknown",
+                            location: "Unknown",
+                            target: "Unknown",
+                            keywords: ["error"],
+                            error: true,
+                            errorMessage: error.message,
+                            site_name: new URL(link.url).hostname
                         };
+                        
+                        // 네트워크 에러 타입 구분
+                        if (error.message.includes('timeout')) {
+                            errorPageInfo.errorType = 'timeout';
+                        } else if (error.message.includes('404')) {
+                            errorPageInfo.errorType = 'http';
+                            errorPageInfo.errorCode = 404;
+                        } else if (error.message.includes('HTTP')) {
+                            errorPageInfo.errorType = 'http';
+                        } else {
+                            errorPageInfo.errorType = 'general';
+                        }
+                        
+                        return analyzeLink(link, errorPageInfo);
                     }
                 });
                 
@@ -383,8 +403,10 @@ async function handleAnalyze() {
                 const batchResults = await Promise.all(batchPromises);
                 analysisData.push(...batchResults);
                 
-                // 다음 배치 전 지연 제거 (필요시에만 추가)
-                // 서버가 rate limit를 가지고 있다면 이 부분을 조정하세요
+                // 배치 간 지연 시간 추가 (서버 부하 및 rate limit 방지)
+                if (i + batchSize < links.length) {
+                    await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5초 대기
+                }
             }
         }
         
