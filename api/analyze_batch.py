@@ -66,11 +66,24 @@ class handler(BaseHTTPRequestHandler):
 링크 목록:
 {json.dumps(links, ensure_ascii=False, indent=2)}
 
-각 링크에 대해 다음 정보를 JSON 형식으로 제공해주세요:
-1. suggested_text: 카테고리별 규칙에 맞는 이상적인 링크 텍스트
-2. accuracy: 현재 텍스트의 정확도 점수 (0-100)
-3. issues: 개선이 필요한 사항들 (배열)
-4. key_info: 링크에서 추출한 핵심 정보 (제목, 주최자, 기간, 장소 등)
+모든 링크를 분석하여 URL을 키로 하는 JSON 객체로 응답해주세요.
+각 링크에 대해 다음 정보를 포함해야 합니다:
+
+{{
+  "링크URL1": {{
+    "suggested_text": "카테고리별 규칙에 맞는 이상적인 링크 텍스트",
+    "accuracy": 0-100 사이의 정확도 점수,
+    "issues": ["개선사항1", "개선사항2"],
+    "key_info": {{
+      "title": "제목",
+      "organizer": "주최자/회사명",
+      "period": "기간/마감일",
+      "location": "장소",
+      "target": "대상"
+    }}
+  }},
+  "링크URL2": {{ ... }}
+}}
 
 카테고리별 링크 텍스트 규칙:
 - job (채용): [회사명] 직군 채용 (경력구분, 마감일)
@@ -79,7 +92,7 @@ class handler(BaseHTTPRequestHandler):
 - contest (공모/지원): 공모전명 (~마감일)
 - event (행사): [주최] 행사명 (장소, 기간)
 
-JSON 형식으로만 응답해주세요."""
+중요: 반드시 모든 링크를 분석하고, URL을 키로 하는 단일 JSON 객체로 응답하세요."""
 
                 # Bedrock API 호출
                 request_body = json.dumps({
@@ -117,8 +130,27 @@ JSON 형식으로만 응답해주세요."""
                     else:
                         result = {"error": "Failed to parse AI response", "raw": content}
                 
+                # 응답이 이미 올바른 형식인지 확인
+                if isinstance(result, dict) and not result.get('error'):
+                    # URL이 키인 딕셔너리 형태로 되어 있는지 확인
+                    formatted_result = result
+                else:
+                    # 에러가 있거나 형식이 잘못된 경우
+                    formatted_result = {}
+                    for link in links:
+                        formatted_result[link['url']] = {
+                            'suggested_text': link['text'],
+                            'accuracy': 0,
+                            'issues': ['AI 분석 실패'],
+                            'key_info': {
+                                'title': 'Unknown',
+                                'organizer': 'Unknown',
+                                'period': 'Unknown'
+                            }
+                        }
+                
                 # 응답 전송
-                response_data = json.dumps(result, ensure_ascii=False)
+                response_data = json.dumps(formatted_result, ensure_ascii=False)
                 self.send_header('Content-Length', str(len(response_data.encode('utf-8'))))
                 self.end_headers()
                 self.wfile.write(response_data.encode('utf-8'))
